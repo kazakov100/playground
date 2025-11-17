@@ -1,0 +1,26 @@
+# API keys and secrets
+.env
+*.env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Images (too large for git - exclude or use git LFS)
+calgary_images/
+lausanne_images/
+*.jpg
+*.jpeg
+*.png
+
+# Results
+*.csv
+
+# OS
+.DS_Store
