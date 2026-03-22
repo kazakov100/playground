@@ -23,6 +23,8 @@ if not _APP_DIR.is_dir():
         "Clone the full repo (including the 'AI photo automation' folder)."
     )
 
+# `core/` lives at repo root (no spaces) so `import core` works on Streamlit Cloud and locally.
+sys.path.insert(0, str(_ROOT))
 sys.path.insert(0, str(_APP_DIR))
 os.chdir(_APP_DIR)
 

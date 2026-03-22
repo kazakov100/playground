@@ -1,8 +1,18 @@
 import html
-import os
 import json
-from typing import Any, Dict, List, Optional, Set
+import os
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
+
+# `core/` package is at repository root (next to `AI photo automation/`). Prepend repo root
+# and this folder so imports work when loaded via root `app.py` or `streamlit run` here.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_APP_DIR = Path(__file__).resolve().parent
+for _p in (str(_REPO_ROOT), str(_APP_DIR)):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
 
 import pandas as pd
 import streamlit as st

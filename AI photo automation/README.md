@@ -15,9 +15,10 @@ streamlit run app.py
 
 | Path | Role |
 |------|------|
-| `app.py` | Streamlit UI (main entry) |
-| `core/openrouter.py` | OpenRouter API calls, image → data URL, classification |
-| `core/optimizer.py` | Optional sequential evaluation loop (not wired into `app.py`) |
+| `../app.py` (repo root) | Streamlit shim for Cloud — use this as **Main file** on Streamlit Community Cloud |
+| `app.py` | Streamlit UI (run locally from this folder, or via root shim) |
+| `../core/openrouter.py` (repo root) | OpenRouter API calls, image → data URL, classification |
+| `../core/optimizer.py` | Optional sequential evaluation loop (not wired into `app.py`) |
 | `app_streamlit.py` | Alternate / older Streamlit UI |
 
 ## Deploy

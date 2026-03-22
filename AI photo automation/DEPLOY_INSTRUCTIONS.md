@@ -12,6 +12,7 @@ Include the folder **`AI photo automation/`** and the **root** `requirements.txt
    - This is the **`app.py` in the repository root** (not inside `AI photo automation/`).
    - **Do not** use `AI photo automation/app.py` as the main file path. **Streamlit Community Cloud breaks on spaces** in that path: the installer turns it into `automation/requirements.txt` (wrong) and dependency install fails.
    - The root `app.py` loads the real app from the `AI photo automation/` folder for you.
+   - Shared Python code (`core/`, OpenRouter helpers) lives at the **repository root** (no spaces in the path) so imports work reliably on Streamlit Cloud.
 
 2. **Branch:** e.g. `main`
 
