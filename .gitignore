@@ -24,3 +24,7 @@ lausanne_images/
 
 # OS
 .DS_Store
+.env
+*.pyc
+__pycache__/
+.venv/
