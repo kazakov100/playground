@@ -97,6 +97,11 @@ def image_to_data_url(
     return _compress_image_bytes(raw, mime, max_size_mb, progress_cb=progress_cb)
 
 
+def completion_cost_usd(response: Dict[str, Any], model_id: str) -> float:
+    """Estimate USD from an OpenRouter chat/completions JSON `response` (uses `usage`)."""
+    return _estimate_cost_usd(response.get("usage") or {}, model_id)
+
+
 def _estimate_cost_usd(usage: Dict[str, Any], model_id: str) -> float:
     # Approximate OpenRouter pricing ($/1M tokens in/out); unknown models use Claude-like defaults.
     rates = {

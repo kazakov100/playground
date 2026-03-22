@@ -1,6 +1,11 @@
 # API keys and secrets
 .env
 *.env
+.openrouter_api_key.json
+**/.openrouter_api_key.json
+
+# Local Streamlit prompt persistence (per machine)
+**/.prompt_state.json
 
 # Root uv.lock breaks Streamlit Cloud (it prefers uv over requirements.txt).
 # Keep lockfiles as playground_uv.lock or outside the repo root.

@@ -8,9 +8,10 @@ Include the folder **`AI photo automation/`** and the **root** `requirements.txt
 
 ## 2. Create the app
 
-1. **Main file path — use one of these (recommended first):**
-   - **`app.py`** ← **recommended** (file at **repo root**; no spaces in path)
-   - or `AI photo automation/app.py` (must match your repo exactly; use **forward slashes**)
+1. **Main file path — MUST be exactly:** **`app.py`**
+   - This is the **`app.py` in the repository root** (not inside `AI photo automation/`).
+   - **Do not** use `AI photo automation/app.py` as the main file path. **Streamlit Community Cloud breaks on spaces** in that path: the installer turns it into `automation/requirements.txt` (wrong) and dependency install fails.
+   - The root `app.py` loads the real app from the `AI photo automation/` folder for you.
 
 2. **Branch:** e.g. `main`
 

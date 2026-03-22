@@ -21,9 +21,15 @@ Without that snippet, nobody can tell whether the problem is a **bad package nam
 
 | Check | Why |
 |--------|-----|
-| **Main file path** is `app.py` (repo root) | Uses root `requirements.txt` and the shim in root `app.py`. |
+| **Main file path** is **`app.py`** (repo root only) | **Never** use `AI photo automation/app.py` — **spaces in the path** break the installer; logs show `Failed to parse: automation/requirements.txt` because the path is split wrong. |
 | **No `uv.lock` at repo root** on GitHub | If present, Cloud may use `uv` and try to install the whole monorepo. Remove with `git rm --cached uv.lock` if it was committed. |
 | **No `pyproject.toml` at repo root** on GitHub | This repo uses `playground_pyproject.toml` instead so Cloud falls back to `requirements.txt`. |
+
+### If your log says `automation/requirements.txt` or `Invalid requirement: 'automation/requirements.txt'`
+
+That means the **Main file path** was set to something like **`AI photo automation/app.py`**. Cloud’s dependency step does not handle that space correctly.
+
+**Fix:** In app settings, set **Main file path** to **`app.py`** (the file at the **root** of the repo). Reboot the app.
 
 ## Official docs
 

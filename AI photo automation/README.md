@@ -28,4 +28,4 @@ See `DEPLOY_INSTRUCTIONS.md` (Streamlit Community Cloud).
 
 - **Model / temperature:** sidebar in the app.
 - **System prompt:** `SYSTEM_PROMPT` in `app.py`.
-- **API key:** `OPENROUTER_API_KEY` (env or `.env`).
+- **API key:** sidebar (saved locally to **`.openrouter_api_key.json`**, gitignored), or `OPENROUTER_API_KEY` in env / `.env` / Streamlit Secrets.
