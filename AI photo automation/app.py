@@ -1,6 +1,6 @@
 import os
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Set
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pandas as pd
@@ -226,21 +226,32 @@ def _render_brand_header() -> None:
         unsafe_allow_html=True,
     )
 
+
 def _load_openrouter_key() -> str:
-    # 1) Environment variable if already exported.
+    """Resolve API key from env, then from `.env` near this file or cwd (Streamlit-safe)."""
     key = os.getenv("OPENROUTER_API_KEY", "").strip()
     if key:
         return key
 
-    # 2) Fall back to .env files (current dir, parent, grandparent).
-    candidates = [
-        os.path.join(os.getcwd(), ".env"),
-        os.path.join(os.getcwd(), "..", ".env"),
-        os.path.join(os.getcwd(), "..", "..", ".env"),
-    ]
-    for env_path in candidates:
-        if not os.path.exists(env_path):
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    candidates: List[str] = []
+    seen: Set[str] = set()
+    for root in (
+        app_dir,
+        os.path.dirname(app_dir),
+        os.path.dirname(os.path.dirname(app_dir)),
+        os.getcwd(),
+    ):
+        path = os.path.join(root, ".env")
+        if not os.path.isfile(path):
             continue
+        real = os.path.realpath(path)
+        if real in seen:
+            continue
+        seen.add(real)
+        candidates.append(path)
+
+    for env_path in candidates:
         try:
             with open(env_path, "r", encoding="utf-8") as f:
                 for raw_line in f:
@@ -252,7 +263,7 @@ def _load_openrouter_key() -> str:
                         value = v.strip().strip('"').strip("'")
                         if value:
                             return value
-        except Exception:
+        except OSError:
             continue
 
     return ""

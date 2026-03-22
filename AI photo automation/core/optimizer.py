@@ -1,6 +1,11 @@
+"""
+Batch evaluation helpers (sequential). Not used by `app.py`, which runs its own parallel loop.
+Kept for reuse or older workflows; safe to import `run_optimizer` from notebooks/tests.
+"""
+
 import os
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd
 

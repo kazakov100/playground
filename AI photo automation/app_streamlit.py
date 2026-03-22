@@ -1,9 +1,8 @@
 """
-Streamlit UI for Prompt Optimizer
+Streamlit UI for Prompt Optimizer (alternate / legacy entry).
 Run with: streamlit run app_streamlit.py
 
-This is a complete Streamlit migration from Gradio.
-Streamlit handles file uploads much better than Gradio.
+Prefer `app.py` for the current CSV prompt evaluator + core/ layout.
 """
 
 import streamlit as st
@@ -878,7 +877,7 @@ with col1:
     
     st.markdown("---")
     
-    # File upload - Streamlit handles this much better than Gradio!
+    # File upload
     st.markdown("**Upload Images (optional)**")
     st.info("📁 Filenames must start with PASS_ or FAIL_")
     

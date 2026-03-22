@@ -1,41 +1,27 @@
-# Streamlit Setup Instructions
+# Streamlit setup
 
-## Quick Start
+## Install
 
-Streamlit provides **much better file upload handling** than Gradio and avoids the `ClientDisconnect` errors.
+```bash
+pip install -r requirements.txt
+```
 
-### To Run Streamlit:
+(Or install: `streamlit`, `requests`, `pandas`, `Pillow`.)
 
-1. **Make sure Streamlit is installed:**
-   ```bash
-   pip install streamlit
-   ```
+## Run
 
-2. **Run the Streamlit app:**
-   ```bash
-   streamlit run app_streamlit.py
-   ```
+```bash
+streamlit run app.py
+```
 
-3. **Or from Jupyter notebook:**
-   ```python
-   !streamlit run app_streamlit.py
-   ```
+Or: `streamlit run app_streamlit.py` for the alternate UI.
 
-### Benefits of Streamlit:
+## Features (app.py)
 
-- ✅ **Better file upload handling** - No more ClientDisconnect errors
-- ✅ **Handles multiple batches** - Upload second batch without issues
-- ✅ **More reliable** - Files are processed more reliably
-- ✅ **Better progress tracking** - Real-time progress updates
-- ✅ **Cleaner UI** - Modern, responsive interface
+- CSV upload with market filter  
+- Multiple prompts, metrics, FP/FN views  
+- OpenRouter vision classification via `core/openrouter.py`  
 
-### Features:
+## Deploy
 
-- Market photos from CSV (same as Gradio)
-- File uploads (much more reliable than Gradio)
-- UX Focus slider (0-100%)
-- Real-time progress tracking
-- Stop button
-- Results display (summary, prompts, dataframes)
-
-The Streamlit app (`app_streamlit.py`) contains all the same functionality as the Gradio version, but with better file upload handling!
+See `DEPLOY_INSTRUCTIONS.md` for Streamlit Community Cloud.

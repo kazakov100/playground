@@ -1,24 +1,28 @@
-# 🚀 Start Streamlit App
+# Start Streamlit app
 
-## Quick Start
-
-**To use Streamlit instead of Gradio (RECOMMENDED):**
+## Quick start
 
 ```bash
-cd "/Users/assafkazakov/projects/playground/AI photo automation"
+cd "/path/to/playground/AI photo automation"
+streamlit run app.py
+```
+
+Alternate UI (older monolith):
+
+```bash
 streamlit run app_streamlit.py
 ```
 
-Or from Jupyter notebook:
+From Jupyter (same as terminal):
+
 ```python
-!streamlit run app_streamlit.py
+!streamlit run app.py
 ```
 
-## Why Streamlit?
+## Why Streamlit
 
-- ✅ **No ClientDisconnect errors** - Handles file uploads reliably
-- ✅ **Multiple batches work** - Upload second batch without issues  
-- ✅ **Better performance** - Faster file processing
-- ✅ **Same features** - All functionality from Gradio version
+- Reliable CSV and file uploads  
+- Simple Python UI  
+- Works well with OpenRouter vision calls  
 
-The Streamlit app is ready to use! Just run the command above.
+The main app is **`app.py`** (uses `core/` for API + evaluation helpers).

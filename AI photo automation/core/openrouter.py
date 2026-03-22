@@ -1,6 +1,7 @@
 import base64
 import json
 import mimetypes
+import os
 import time
 from io import BytesIO
 from typing import Any, Callable, Dict, Optional, Tuple
@@ -97,11 +98,13 @@ def image_to_data_url(
 
 
 def _estimate_cost_usd(usage: Dict[str, Any], model_id: str) -> float:
-    # Approximate OpenRouter pricing map; adjust as needed.
+    # Approximate OpenRouter pricing ($/1M tokens in/out); unknown models use Claude-like defaults.
     rates = {
-        "anthropic/claude-sonnet-4.6": (3.0, 15.0),  # per 1M tokens: input, output
+        "anthropic/claude-sonnet-4.6": (3.0, 15.0),
         "anthropic/claude-sonnet-4.5": (3.0, 15.0),
         "anthropic/claude-sonnet-4": (3.0, 15.0),
+        "openai/gpt-4o-mini": (0.15, 0.60),
+        "openai/gpt-4.1-mini": (0.40, 1.60),
     }
     in_rate, out_rate = rates.get(model_id, (3.0, 15.0))
     prompt_tokens = float(usage.get("prompt_tokens", 0))
@@ -132,8 +135,8 @@ def classify_image(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:8501",
-        "X-Title": "Prompt Comparison App",
+        "HTTP-Referer": os.getenv("OPENROUTER_HTTP_REFERER", "http://localhost:8501"),
+        "X-Title": "CSV Prompt Evaluator",
     }
 
     json_contract = (
