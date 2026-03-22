@@ -1,10 +1,14 @@
 # Deploying the Streamlit app (shareable link)
 
-The app is **Streamlit**, not Gradio. Use **Streamlit Community Cloud** for a public URL.
+Use **Streamlit Community Cloud** for a public URL.
 
 ## 1. Push your repo to GitHub
 
-Ensure the repo includes `app.py`, `core/`, and a **root** `requirements.txt` (from the `playground` repo root).
+Ensure the app includes:
+
+- `AI photo automation/app.py`
+- `AI photo automation/core/`
+- `AI photo automation/requirements.txt` (or root `requirements.txt`)
 
 ## 2. Streamlit Community Cloud
 
@@ -21,9 +25,20 @@ Ensure the repo includes `app.py`, `core/`, and a **root** `requirements.txt` (f
 
 Do **not** commit `.env`; use Streamlit Secrets only.
 
+## If “Error installing requirements” appears
+
+**Cause (common in monorepos):** a file named **`uv.lock` in the repo root** makes Community Cloud use **`uv`** and install **everything** in that lock (often huge and slow). This repo keeps the lock as **`playground_uv.lock`** instead so Cloud falls back to **`requirements.txt`**.
+
+**If you still see errors:**
+
+1. Open **Manage app → Logs** and copy the **first pip/uv error line**.
+2. Confirm **Main file path** is exactly `AI photo automation/app.py` (forward slashes).
+3. In **Advanced settings**, pick **Python 3.11** if available.
+
 ## Local run
 
 ```bash
 cd "AI photo automation"
+pip install -r requirements.txt
 streamlit run app.py
 ```
