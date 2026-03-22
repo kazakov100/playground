@@ -2,6 +2,10 @@
 .env
 *.env
 
+# Root uv.lock breaks Streamlit Cloud (it prefers uv over requirements.txt).
+# Keep lockfiles as playground_uv.lock or outside the repo root.
+uv.lock
+
 # Python cache
 __pycache__/
 *.py[cod]

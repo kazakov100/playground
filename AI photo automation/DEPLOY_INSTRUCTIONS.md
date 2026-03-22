@@ -1,44 +1,51 @@
 # Deploying the Streamlit app (shareable link)
 
-Use **Streamlit Community Cloud** for a public URL.
+Use **Streamlit Community Cloud**: [share.streamlit.io](https://share.streamlit.io)
 
-## 1. Push your repo to GitHub
+## 1. Push the full repo to GitHub
 
-Ensure the app includes:
+Include the folder **`AI photo automation/`** and the **root** `requirements.txt`.
 
-- `AI photo automation/app.py`
-- `AI photo automation/core/`
-- `AI photo automation/requirements.txt` (or root `requirements.txt`)
+## 2. Create the app
 
-## 2. Streamlit Community Cloud
+1. **Main file path — use one of these (recommended first):**
+   - **`app.py`** ← **recommended** (file at **repo root**; no spaces in path)
+   - or `AI photo automation/app.py` (must match your repo exactly; use **forward slashes**)
 
-1. Go to [share.streamlit.io](https://share.streamlit.io) and sign in with GitHub.
-2. **Create app** → select your repo and branch.
-3. **Main file path:** `AI photo automation/app.py` (adjust if your paths differ).
-4. **Secrets** (Settings → Secrets):
+2. **Branch:** e.g. `main`
+
+3. **Secrets** (app → ⚙️ → Secrets):
 
    ```toml
    OPENROUTER_API_KEY = "your-key-here"
    ```
 
-5. Deploy. You’ll get a URL like `https://<name>.streamlit.app`.
+4. **Deploy**
 
-Do **not** commit `.env`; use Streamlit Secrets only.
+## If you see “Error installing requirements”
 
-## If “Error installing requirements” appears
+That banner is **not** the real error. See **`STREAMLIT_CLOUD_LOGS.md`** in the repo root for how to copy the **build log** (the lines mentioning `pip`, `uv`, or `ERROR`).
 
-**Cause (common in monorepos):** a file named **`uv.lock` in the repo root** makes Community Cloud use **`uv`** and install **everything** in that lock (often huge and slow). This repo keeps the lock as **`playground_uv.lock`** instead so Cloud falls back to **`requirements.txt`**.
+Quick fixes that often help:
 
-**If you still see errors:**
+1. **Main file path:** `app.py` (at **repository root**).
+2. **On GitHub:** no **`uv.lock`** at repo root; no **`pyproject.toml`** at repo root (this project uses **`playground_pyproject.toml`**).
+3. **Advanced settings:** try **Python 3.11** if install fails on newer Python.
 
-1. Open **Manage app → Logs** and copy the **first pip/uv error line**.
-2. Confirm **Main file path** is exactly `AI photo automation/app.py` (forward slashes).
-3. In **Advanced settings**, pick **Python 3.11** if available.
+## Local run (same as Cloud)
 
-## Local run
+From the **repository root**:
 
 ```bash
-cd "AI photo automation"
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+Or from `AI photo automation/`:
+
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+```
+
+(From that folder, `app.py` refers to the nested file; from repo root, use the **root** `app.py` shim.)
