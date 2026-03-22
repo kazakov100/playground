@@ -1,0 +1,6 @@
+# Streamlit Cloud: lean deps only (no Gradio — it breaks many cloud builds).
+# Use `AI photo automation/requirements.txt` locally if you need Gradio for notebooks.
+streamlit>=1.28.0,<2
+requests>=2.28.0
+pandas>=2.0.0
+Pillow>=10.0.0
