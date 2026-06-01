@@ -4,7 +4,7 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 # `core/` package is at repository root (next to `AI photo automation/`). Prepend repo root
 # and this folder so imports work when loaded via root `app.py` or `streamlit run` here.
@@ -18,6 +18,7 @@ import pandas as pd
 import streamlit as st
 
 from core.openrouter import classify_image, completion_cost_usd, post_with_retries
+from utils import infer_label
 
 
 DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6"
@@ -43,6 +44,7 @@ def _optimizer_runtime_vision_blurb(evaluation_model_id: str) -> str:
 OPTIMIZER_MODEL_ID = "openai/gpt-4o-mini"
 
 PROMPT_STATE_FILE = os.path.join(os.path.dirname(__file__), ".prompt_state.json")
+UPLOADED_EVAL_DIR = os.path.join(os.path.dirname(__file__), ".uploaded_evaluation_photos")
 # Local-only API key cache (never commit — see .gitignore). Not durable on Streamlit Cloud.
 API_KEY_LOCAL_FILE = os.path.join(os.path.dirname(__file__), ".openrouter_api_key.json")
 
@@ -645,6 +647,75 @@ def _filter_by_market(df: pd.DataFrame, market_query: str) -> pd.DataFrame:
         return df
     q = market_query.strip().lower()
     return df[df["market_name"].str.lower() == q].reset_index(drop=True)
+
+
+def _append_evaluation_df(
+    existing: Optional[pd.DataFrame], new_rows: pd.DataFrame
+) -> pd.DataFrame:
+    """Append rows; dedupe by image_url + market_name (latest wins)."""
+    if new_rows.empty:
+        return existing if existing is not None else pd.DataFrame(
+            columns=["image_url", "market_name", "ground_truth"]
+        )
+    if existing is None or existing.empty:
+        return new_rows.reset_index(drop=True)
+    combined = pd.concat([existing, new_rows], ignore_index=True)
+    return combined.drop_duplicates(
+        subset=["image_url", "market_name"], keep="last"
+    ).reset_index(drop=True)
+
+
+def _normalize_uploaded_images(
+    uploaded_files: List[Any],
+    market_name: str,
+) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Save uploaded images to disk and build evaluation rows.
+    Ground truth is inferred from filename prefix PASS_ or FAIL_.
+    """
+    market = market_name.strip()
+    if not market:
+        raise ValueError("Market name is required for uploaded photos.")
+    if not uploaded_files:
+        return pd.DataFrame(columns=["image_url", "market_name", "ground_truth"]), []
+
+    os.makedirs(UPLOADED_EVAL_DIR, exist_ok=True)
+    rows: List[Dict[str, str]] = []
+    skipped: List[str] = []
+
+    for uploaded in uploaded_files:
+        name = os.path.basename(str(uploaded.name))
+        gt = infer_label(name)
+        if gt not in ("PASS", "FAIL"):
+            skipped.append(name)
+            continue
+
+        dest = os.path.join(UPLOADED_EVAL_DIR, name)
+        base, ext = os.path.splitext(name)
+        counter = 1
+        while os.path.exists(dest):
+            dest = os.path.join(UPLOADED_EVAL_DIR, f"{base}_{counter}{ext}")
+            counter += 1
+
+        with open(dest, "wb") as f:
+            f.write(uploaded.getbuffer())
+
+        rows.append(
+            {
+                "image_url": dest,
+                "market_name": market,
+                "ground_truth": gt,
+            }
+        )
+
+    if not rows and skipped:
+        raise ValueError(
+            "No valid photos: filenames must start with PASS_ or FAIL_ "
+            f"(e.g. PASS_example.jpg). Skipped: {', '.join(skipped[:8])}"
+            + (" …" if len(skipped) > 8 else "")
+        )
+
+    return pd.DataFrame(rows), skipped
 
 
 def _compute_metrics(rows: List[Dict[str, Any]], total_cost: float) -> Dict[str, Any]:
@@ -1831,21 +1902,70 @@ def main() -> None:
         retries = st.number_input("Retries", min_value=1, max_value=6, value=3, step=1)
         st.caption("System prompt is hard-coded in backend.")
 
-    st.subheader("1) Upload Evaluation CSV")
-    csv_file = st.file_uploader(
-        "Upload CSV with columns: image_url, market_name, expected_result (ground_truth)",
-        type=["csv"],
-        accept_multiple_files=False,
-    )
-    if csv_file is not None:
-        try:
-            raw_df = pd.read_csv(csv_file)
-            normalized_df = _normalize_csv(raw_df)
-            st.session_state.csv_df = normalized_df
-            st.session_state.filtered_df = normalized_df
-            st.success(f"Loaded {len(normalized_df)} valid rows from CSV.")
-        except Exception as exc:
-            st.error(f"Failed to parse CSV: {exc}")
+    st.subheader("1) Upload Evaluation Data (CSV or photos)")
+    col_csv, col_photos = st.columns(2)
+
+    with col_csv:
+        st.markdown("**CSV** — `image_url`, `market_name`, `expected_result`")
+        csv_file = st.file_uploader(
+            "Upload evaluation CSV",
+            type=["csv"],
+            accept_multiple_files=False,
+            key="eval_csv_uploader",
+            label_visibility="collapsed",
+        )
+        if csv_file is not None:
+            try:
+                raw_df = pd.read_csv(csv_file)
+                normalized_df = _normalize_csv(raw_df)
+                st.session_state.csv_df = normalized_df
+                st.session_state.filtered_df = normalized_df
+                st.success(f"Loaded {len(normalized_df)} valid rows from CSV.")
+            except Exception as exc:
+                st.error(f"Failed to parse CSV: {exc}")
+
+    with col_photos:
+        st.markdown("**Photos** — drag & drop; PASS/FAIL from filename (`PASS_…` / `FAIL_…`)")
+        upload_market = st.text_input(
+            "Market name for this batch",
+            key="upload_market_name",
+            placeholder="e.g. Denver",
+            help="Required when adding photos.",
+        )
+        image_files = st.file_uploader(
+            "Drop or select images (PNG, JPG, JPEG, WEBP)",
+            type=["png", "jpg", "jpeg", "webp"],
+            accept_multiple_files=True,
+            key="eval_photo_uploader",
+        )
+        if image_files:
+            with st.expander(f"Preview {len(image_files)} file(s)"):
+                for f in image_files:
+                    gt = infer_label(f.name)
+                    label = gt if gt else "⚠️ rename to PASS_… or FAIL_…"
+                    st.text(f"• {f.name} → {label}")
+        if st.button("Add photos to evaluation set", key="add_uploaded_photos", type="primary"):
+            if not image_files:
+                st.error("Select one or more images first.")
+            else:
+                try:
+                    new_df, skipped_names = _normalize_uploaded_images(
+                        image_files, upload_market
+                    )
+                    st.session_state.csv_df = _append_evaluation_df(
+                        st.session_state.csv_df, new_df
+                    )
+                    st.session_state.filtered_df = st.session_state.csv_df
+                    msg = f"Added {len(new_df)} photo(s) for market **{upload_market.strip()}**."
+                    if skipped_names:
+                        msg += (
+                            f" Skipped {len(skipped_names)} without PASS_/FAIL_ prefix: "
+                            + ", ".join(skipped_names[:6])
+                            + (" …" if len(skipped_names) > 6 else "")
+                        )
+                    st.success(msg)
+                except Exception as exc:
+                    st.error(str(exc))
 
     if st.session_state.csv_df is not None:
         st.write(f"Total rows loaded: {len(st.session_state.csv_df)}")
@@ -1893,7 +2013,10 @@ def main() -> None:
             )
             return
         if st.session_state.filtered_df is None or len(st.session_state.filtered_df) == 0:
-            st.error("Please upload a valid CSV (and ensure filter has rows).")
+            st.error(
+                "No evaluation data — upload a CSV and/or drop photos (PASS_/FAIL_ filenames), "
+                "and ensure the market filter still has rows."
+            )
             return
 
         runnable: List[Dict[str, str]] = []
@@ -1961,7 +2084,10 @@ def main() -> None:
                 "Streamlit Secrets / .env / environment."
             )
         elif st.session_state.filtered_df is None or len(st.session_state.filtered_df) == 0:
-            st.error("Please upload a valid CSV (and ensure filter has rows).")
+            st.error(
+                "No evaluation data — upload a CSV and/or drop photos (PASS_/FAIL_ filenames), "
+                "and ensure the market filter still has rows."
+            )
         else:
             pn = str(pending_suggested_run["prompt_name"])
             old_metrics: Optional[Dict[str, Any]] = None
