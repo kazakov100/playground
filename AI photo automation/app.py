@@ -46,6 +46,7 @@ OPTIMIZER_MODEL_ID = "openai/gpt-4o-mini"
 
 PROMPT_STATE_FILE = os.path.join(os.path.dirname(__file__), ".prompt_state.json")
 UPLOADED_EVAL_DIR = os.path.join(os.path.dirname(__file__), ".uploaded_evaluation_photos")
+UPLOADED_DEFAULT_MARKET = "UPLOADED_PHOTOS"
 # Local-only API key cache (never commit — see .gitignore). Not durable on Streamlit Cloud.
 API_KEY_LOCAL_FILE = os.path.join(os.path.dirname(__file__), ".openrouter_api_key.json")
 
@@ -716,15 +717,13 @@ def _append_evaluation_df(
 
 def _normalize_uploaded_images(
     uploaded_files: List[Any],
-    market_name: str,
+    market_name: str = UPLOADED_DEFAULT_MARKET,
 ) -> Tuple[pd.DataFrame, List[str]]:
     """
     Save uploaded images to disk and build evaluation rows.
     Ground truth is inferred from filename prefix PASS_ or FAIL_.
     """
-    market = market_name.strip()
-    if not market:
-        raise ValueError("Market name is required for uploaded photos.")
+    market = market_name.strip() or UPLOADED_DEFAULT_MARKET
     if not uploaded_files:
         return pd.DataFrame(columns=["image_url", "market_name", "ground_truth"]), []
 
@@ -765,6 +764,49 @@ def _normalize_uploaded_images(
         )
 
     return pd.DataFrame(rows), skipped
+
+
+def _is_uploaded_photo_path(image_url: Any) -> bool:
+    try:
+        value = os.path.abspath(str(image_url))
+    except Exception:
+        return False
+    return value.startswith(os.path.abspath(UPLOADED_EVAL_DIR) + os.sep)
+
+
+def _remove_all_uploaded_photos() -> int:
+    """Delete uploaded image files and remove matching rows from session datasets."""
+    removed_files = 0
+    upload_root = os.path.abspath(UPLOADED_EVAL_DIR)
+    if os.path.isdir(upload_root):
+        for root, _, files in os.walk(upload_root):
+            for name in files:
+                try:
+                    os.remove(os.path.join(root, name))
+                    removed_files += 1
+                except Exception:
+                    pass
+        try:
+            os.rmdir(upload_root)
+        except Exception:
+            pass
+
+    for df_key in ("csv_df", "filtered_df"):
+        df = st.session_state.get(df_key)
+        if isinstance(df, pd.DataFrame) and not df.empty:
+            mask = ~df["image_url"].map(_is_uploaded_photo_path)
+            st.session_state[df_key] = df[mask].reset_index(drop=True)
+
+    updated_runs: List[Dict[str, Any]] = []
+    for run in st.session_state.get("run_results", []):
+        rows = [r for r in run.get("rows", []) if not _is_uploaded_photo_path(r.get("image_url", ""))]
+        if len(rows) != len(run.get("rows", [])):
+            prev_cost = float(run.get("metrics", {}).get("cost_usd", 0.0))
+            run["rows"] = rows
+            run["metrics"] = _compute_metrics(rows, total_cost=prev_cost)
+        updated_runs.append(run)
+    st.session_state.run_results = updated_runs
+    return removed_files
 
 
 def _compute_metrics(rows: List[Dict[str, Any]], total_cost: float) -> Dict[str, Any]:
@@ -2027,12 +2069,7 @@ def main() -> None:
 
     with col_photos:
         st.markdown("**Photos** — drag & drop; PASS/FAIL from filename (`PASS_…` / `FAIL_…`)")
-        upload_market = st.text_input(
-            "Market name for this batch",
-            key="upload_market_name",
-            placeholder="e.g. Denver",
-            help="Required when adding photos.",
-        )
+        st.caption(f"Uploaded photos use market: `{UPLOADED_DEFAULT_MARKET}`")
         image_files = st.file_uploader(
             "Drop or select images (PNG, JPG, JPEG, WEBP)",
             type=["png", "jpg", "jpeg", "webp"],
@@ -2051,13 +2088,13 @@ def main() -> None:
             else:
                 try:
                     new_df, skipped_names = _normalize_uploaded_images(
-                        image_files, upload_market
+                        image_files, UPLOADED_DEFAULT_MARKET
                     )
                     st.session_state.csv_df = _append_evaluation_df(
                         st.session_state.csv_df, new_df
                     )
                     st.session_state.filtered_df = st.session_state.csv_df
-                    msg = f"Added {len(new_df)} photo(s) for market **{upload_market.strip()}**."
+                    msg = f"Added {len(new_df)} photo(s) for market **{UPLOADED_DEFAULT_MARKET}**."
                     if skipped_names:
                         msg += (
                             f" Skipped {len(skipped_names)} without PASS_/FAIL_ prefix: "
@@ -2067,6 +2104,9 @@ def main() -> None:
                     st.success(msg)
                 except Exception as exc:
                     st.error(str(exc))
+        if st.button("Remove all uploaded photos", key="remove_all_uploaded_photos"):
+            removed = _remove_all_uploaded_photos()
+            st.success(f"Removed uploaded photos and cleaned {removed} file(s).")
 
     if st.session_state.csv_df is not None:
         st.write(f"Total rows loaded: {len(st.session_state.csv_df)}")
