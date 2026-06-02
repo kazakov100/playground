@@ -57,17 +57,6 @@ Analyze the parking photo and decide PASS or FAIL.
 Return concise reasoning.
 """.strip()
 
-OUTPUT_FORMAT_INSTRUCTION = """
-Provide your response in the following format (do not use code blocks):
-{
-  "status": "PASS" or "FAIL",
-  "messages": [
-    "Your observation here",
-    "Another observation"
-  ]
-}
-""".strip()
-
 LANGUAGE_INSTRUCTION_TEMPLATE = (
     "Respond in {language} language, using the same tone and style as the system prompt. "
     "Do not use any other language."
@@ -77,15 +66,12 @@ LANGUAGE_INSTRUCTION_TEMPLATE = (
 def _build_runtime_system_prompt(
     base_system_prompt: str,
     *,
-    use_output_tool: bool,
     use_language_instruction: bool,
     user_language: str,
     use_prompt_caching_marker: bool,
 ) -> str:
     """Compose system prompt to mimic production request assembly behavior."""
     parts: List[str] = [base_system_prompt.strip()]
-    if not use_output_tool:
-        parts.append(OUTPUT_FORMAT_INSTRUCTION)
     if use_language_instruction and user_language.strip():
         parts.append(LANGUAGE_INSTRUCTION_TEMPLATE.format(language=user_language.strip()))
     if use_prompt_caching_marker:
@@ -1684,7 +1670,6 @@ def _run_single_prompt(
     max_workers = 1
     runtime_system_prompt = _build_runtime_system_prompt(
         SYSTEM_PROMPT,
-        use_output_tool=use_output_tool,
         use_language_instruction=use_language_instruction,
         user_language=user_language,
         use_prompt_caching_marker=use_prompt_caching_marker,
