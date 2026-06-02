@@ -23,6 +23,7 @@ from utils import infer_label
 
 DEFAULT_MODEL_ID = "anthropic/claude-sonnet-4.6"
 NON_REASONING_MODELS = [
+    "anthropic.claude-opus-4-7",
     "anthropic/claude-sonnet-4.6",
     "anthropic/claude-sonnet-4.5",
     "anthropic/claude-sonnet-4",
@@ -438,12 +439,13 @@ def _render_metabase_csv_instructions() -> None:
 
 
 def _render_evaluation_model_banner(model_id: str) -> None:
-    """Prominent box showing the active OpenRouter model (section 2)."""
+    """Box showing default model applied to prompts until overridden."""
     safe_model = html.escape(str(model_id))
     st.markdown(
         f'<div class="model-banner">'
-        f"<strong>Evaluation model</strong><br/>"
-        f"<code>{safe_model}</code>"
+        f"<strong>Default evaluation model</strong><br/>"
+        f"<code>{safe_model}</code><br/>"
+        f"<span style='font-size:0.9rem;color:#3d5b71;'>Each prompt can override model and temperature below.</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -2083,6 +2085,11 @@ def main() -> None:
     st.subheader("2) Upload / Edit Up To 3 User Prompts")
     _render_evaluation_model_banner(model_id)
     for idx in (1, 2, 3):
+        if f"prompt_model_{idx}" not in st.session_state:
+            st.session_state[f"prompt_model_{idx}"] = model_id
+        if f"prompt_temp_{idx}" not in st.session_state:
+            st.session_state[f"prompt_temp_{idx}"] = float(temperature)
+    for idx in (1, 2, 3):
         with st.expander(f"Prompt {idx}", expanded=(idx == 1)):
             st.text_input(
                 f"Prompt {idx} Name",
@@ -2096,6 +2103,21 @@ def main() -> None:
                 height=140,
                 on_change=_save_prompt_state_to_disk,
             )
+            cfg_col1, cfg_col2 = st.columns(2)
+            with cfg_col1:
+                st.selectbox(
+                    f"Prompt {idx} model",
+                    NON_REASONING_MODELS,
+                    key=f"prompt_model_{idx}",
+                )
+            with cfg_col2:
+                st.slider(
+                    f"Prompt {idx} temperature",
+                    min_value=0.0,
+                    max_value=1.0,
+                    step=0.01,
+                    key=f"prompt_temp_{idx}",
+                )
 
     st.subheader("3) Run Prompts")
     run_col1, run_col2, run_col3, run_col4 = st.columns(4)
@@ -2118,13 +2140,23 @@ def main() -> None:
             )
             return
 
-        runnable: List[Dict[str, str]] = []
+        runnable: List[Dict[str, Any]] = []
         skipped_names: List[str] = []
         for idx in prompt_indices:
             prompt_text = st.session_state.get(f"prompt_{idx}", "").strip()
             prompt_name = st.session_state.get(f"prompt_name_{idx}", f"Prompt {idx}").strip() or f"Prompt {idx}"
+            prompt_model = st.session_state.get(f"prompt_model_{idx}", model_id)
+            prompt_temp = float(st.session_state.get(f"prompt_temp_{idx}", temperature))
             if prompt_text:
-                runnable.append({"name": prompt_name, "text": prompt_text, "slot": idx})
+                runnable.append(
+                    {
+                        "name": prompt_name,
+                        "text": prompt_text,
+                        "slot": idx,
+                        "model_id": prompt_model,
+                        "temperature": prompt_temp,
+                    }
+                )
             else:
                 skipped_names.append(prompt_name)
 
@@ -2148,8 +2180,8 @@ def main() -> None:
                     user_prompt=item["text"],
                     data=st.session_state.filtered_df,
                     api_key=api_key,
-                    model_id=model_id,
-                    temperature=temperature,
+                    model_id=str(item["model_id"]),
+                    temperature=float(item["temperature"]),
                     max_tokens=int(max_tokens),
                     use_output_tool=bool(use_output_tool),
                     use_language_instruction=bool(use_language_instruction),
@@ -2194,6 +2226,9 @@ def main() -> None:
             )
         else:
             pn = str(pending_suggested_run["prompt_name"])
+            prompt_slot = int(pending_suggested_run["prompt_slot"])
+            prompt_model = st.session_state.get(f"prompt_model_{prompt_slot}", model_id)
+            prompt_temp = float(st.session_state.get(f"prompt_temp_{prompt_slot}", temperature))
             old_metrics: Optional[Dict[str, Any]] = None
             for existing in st.session_state.run_results:
                 if existing.get("prompt_name") == pn:
@@ -2202,12 +2237,12 @@ def main() -> None:
             with st.spinner(f"Running revised prompt: {pn}..."):
                 revised_result = _run_single_prompt(
                     prompt_name=pn,
-                    prompt_slot=int(pending_suggested_run["prompt_slot"]),
+                    prompt_slot=prompt_slot,
                     user_prompt=str(pending_suggested_run["prompt_text"]),
                     data=st.session_state.filtered_df,
                     api_key=api_key,
-                    model_id=model_id,
-                    temperature=temperature,
+                    model_id=str(prompt_model),
+                    temperature=float(prompt_temp),
                     max_tokens=int(max_tokens),
                     use_output_tool=bool(use_output_tool),
                     use_language_instruction=bool(use_language_instruction),
