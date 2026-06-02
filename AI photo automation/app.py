@@ -55,6 +55,53 @@ Analyze the parking photo and decide PASS or FAIL.
 Return concise reasoning.
 """.strip()
 
+OUTPUT_FORMAT_INSTRUCTION = """
+Provide your response in the following format (do not use code blocks):
+{
+  "status": "PASS" or "FAIL",
+  "messages": [
+    "Your observation here",
+    "Another observation"
+  ]
+}
+""".strip()
+
+LANGUAGE_INSTRUCTION_TEMPLATE = (
+    "Respond in {language} language, using the same tone and style as the system prompt. "
+    "Do not use any other language."
+)
+
+
+def _build_runtime_system_prompt(
+    base_system_prompt: str,
+    *,
+    use_output_tool: bool,
+    use_language_instruction: bool,
+    user_language: str,
+    use_prompt_caching_marker: bool,
+) -> str:
+    """Compose system prompt to mimic production request assembly behavior."""
+    parts: List[str] = [base_system_prompt.strip()]
+    if not use_output_tool:
+        parts.append(OUTPUT_FORMAT_INSTRUCTION)
+    if use_language_instruction and user_language.strip():
+        parts.append(LANGUAGE_INSTRUCTION_TEMPLATE.format(language=user_language.strip()))
+    if use_prompt_caching_marker:
+        parts.append("[CACHE_POINT:DEFAULT]")
+    return "\n\n".join(p for p in parts if p)
+
+
+def _build_runtime_user_prompt(
+    base_user_prompt: str,
+    *,
+    use_prompt_caching_marker: bool,
+) -> str:
+    """Append a cache marker placeholder to mimic Bedrock request structure."""
+    prompt = base_user_prompt.strip()
+    if use_prompt_caching_marker:
+        return f"{prompt}\n\n[CACHE_POINT:DEFAULT]"
+    return prompt
+
 
 def _inject_brand_css() -> None:
     st.markdown(
@@ -1576,6 +1623,11 @@ def _run_single_prompt(
     api_key: str,
     model_id: str,
     temperature: float,
+    max_tokens: int,
+    use_output_tool: bool,
+    use_language_instruction: bool,
+    user_language: str,
+    use_prompt_caching_marker: bool,
     max_size_mb: float,
     timeout_s: int,
     retries: int,
@@ -1584,7 +1636,19 @@ def _run_single_prompt(
     total_cost = 0.0
     progress = st.progress(0.0)
     status = st.empty()
-    max_workers = min(10, max(1, len(data)))
+    # Keep evaluation stable across runs by processing in fixed order on one worker.
+    max_workers = 1
+    runtime_system_prompt = _build_runtime_system_prompt(
+        SYSTEM_PROMPT,
+        use_output_tool=use_output_tool,
+        use_language_instruction=use_language_instruction,
+        user_language=user_language,
+        use_prompt_caching_marker=use_prompt_caching_marker,
+    )
+    runtime_user_prompt = _build_runtime_user_prompt(
+        user_prompt,
+        use_prompt_caching_marker=use_prompt_caching_marker,
+    )
 
     def evaluate_one(row: Any) -> Dict[str, Any]:
         image_url = row.image_url
@@ -1594,10 +1658,12 @@ def _run_single_prompt(
             out, cost = classify_image(
                 api_key=api_key,
                 model_id=model_id,
-                system_prompt=SYSTEM_PROMPT,
-                user_prompt=user_prompt,
+                system_prompt=runtime_system_prompt,
+                user_prompt=runtime_user_prompt,
                 image_path_or_url=image_url,
                 temperature=temperature,
+                max_tokens=max_tokens,
+                use_output_tool=use_output_tool,
                 timeout_s=timeout_s,
                 retries=retries,
                 max_size_mb=max_size_mb,
@@ -1897,10 +1963,43 @@ def main() -> None:
         )
         st.markdown(f"**Selected model**  \n`{model_id}`")
         temperature = st.slider("Temperature", 0.0, 1.0, 0.1, 0.1)
+        max_tokens = st.number_input("Max tokens", min_value=64, max_value=4096, value=512, step=32)
+        top_p_config = st.slider(
+            "Top-P (configured only)",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.9,
+            step=0.05,
+            help="Tracked for parity with production config; intentionally not sent in requests.",
+        )
+        st.caption(f"Top-P is configured ({top_p_config:.2f}) but not sent to the model (prod parity).")
+        output_mode = st.radio(
+            "Output mode",
+            options=["Prompt nudge JSON", "Tool mode (schema)"],
+            index=0,
+            help="Prompt nudge appends a hardcoded JSON instruction to system prompt. Tool mode attaches a schema.",
+        )
+        use_output_tool = output_mode == "Tool mode (schema)"
+        use_language_instruction = st.checkbox(
+            "Language instruction",
+            value=False,
+            help="Append hardcoded language sentence when user language is provided.",
+        )
+        user_language = st.text_input(
+            "User language",
+            value="",
+            placeholder="e.g. Spanish",
+            disabled=not use_language_instruction,
+        )
+        use_prompt_caching_marker = st.checkbox(
+            "Prompt caching marker",
+            value=False,
+            help="Adds cache-point markers in prompts to mirror production request layout.",
+        )
         max_size_mb = st.slider("Image Max Size (MB)", 1.0, 8.0, 3.5, 0.5)
         timeout_s = st.number_input("Timeout (s)", min_value=30, max_value=300, value=120, step=10)
         retries = st.number_input("Retries", min_value=1, max_value=6, value=3, step=1)
-        st.caption("System prompt is hard-coded in backend.")
+        st.caption("System prompt is hard-coded in backend. Evaluations run on a single worker for stability.")
 
     st.subheader("1) Upload Evaluation Data (CSV or photos)")
     col_csv, col_photos = st.columns(2)
@@ -2051,6 +2150,11 @@ def main() -> None:
                     api_key=api_key,
                     model_id=model_id,
                     temperature=temperature,
+                    max_tokens=int(max_tokens),
+                    use_output_tool=bool(use_output_tool),
+                    use_language_instruction=bool(use_language_instruction),
+                    user_language=str(user_language),
+                    use_prompt_caching_marker=bool(use_prompt_caching_marker),
                     max_size_mb=max_size_mb,
                     timeout_s=int(timeout_s),
                     retries=int(retries),
@@ -2104,6 +2208,11 @@ def main() -> None:
                     api_key=api_key,
                     model_id=model_id,
                     temperature=temperature,
+                    max_tokens=int(max_tokens),
+                    use_output_tool=bool(use_output_tool),
+                    use_language_instruction=bool(use_language_instruction),
+                    user_language=str(user_language),
+                    use_prompt_caching_marker=bool(use_prompt_caching_marker),
                     max_size_mb=max_size_mb,
                     timeout_s=int(timeout_s),
                     retries=int(retries),
